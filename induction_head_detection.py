@@ -11,6 +11,11 @@ from sklearn.metrics import precision_score, recall_score, f1_score
 # Install necessary libraries (uncomment the line below if running directly)
 # !pip install transformer-lens circuitsvis matplotlib seaborn
 
+# Necessary Libraries for Causal Traicing Implementation
+import torch
+from transformer_lens import HookedTransformer, ActivationCache
+
+
 # Set device to GPU if available
 device = t.device("cuda" if t.cuda.is_available() else "cpu")
 
@@ -27,6 +32,32 @@ sequences = [
 
 # Tokenize sequences
 tokenized_sequences = [model.to_tokens(seq).to(device) for seq in sequences]
+
+def causal_tracing(model, input_ids, attention_layer, token_index):
+    """
+    Injects noise or nullifies specific token's activations to trace its causal influence.
+    
+    Parameters:
+        model: The transformer model
+        input_ids: Tensor of input token IDs
+        attention_layer: Layer number in model to inject causal intervention
+        token_index: Position of token to trace
+    
+    Returns:
+        output_with_intervention: Output with specific intervention on target token
+    """
+    # Forward pass through the model
+    outputs = model(input_ids, output_hidden_states=True)
+    hidden_states = outputs.hidden_states
+    
+    # Nullify or modify specific token's activation at the target layer
+    with torch.no_grad():
+        hidden_states[attention_layer][:, token_index, :] = 0  # Set to 0 or apply intervention
+
+    # Rerun forward pass with intervention
+    output_with_intervention = model(input_ids, output_hidden_states=False, return_dict=True)
+    return output_with_intervention
+
 
 def dynamic_threshold_detection(activations):
     """
